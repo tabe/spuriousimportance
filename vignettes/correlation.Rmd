@@ -1,0 +1,96 @@
+---
+title: "Correlated predictors disrupt importance"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Correlated predictors disrupt importance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(randomForest)
+library(tidyverse)
+library(spuriousimportance)
+```
+
+## Reproducing an expected result
+
+First, we train a random forest for the regression of a response variable `r`.
+
+```{r rf}
+ds <- generate_dataset()
+rf <- randomForest(r ~ ., data = ds %>% select(v, w, x, y, z, r), importance = TRUE)
+```
+
+`randomForest::importance()` extracts the matrix of importance for each
+predictor variable from the trained model.
+
+```{r imp1}
+importance(rf, type = 1)
+```
+
+Note that the function can calculate different measures of importance, depending
+on argument `type`.
+
+```{r imp2}
+importance(rf, type = 2)
+```
+
+Cf. `caret::varImp()` reproduces the former one.
+
+```{r imp3}
+library(caret)
+varImp(rf)
+```
+
+## For a regression with a reduced set of predictors
+
+Next, we will see what happens when excluding unimportant variables `y` and `z`
+from the set of predictors.
+
+```{r rf1}
+ds1 <- generate_dataset()
+rf1 <- randomForest(r ~ ., data = ds1 %>% select(v, w, x, r), importance = TRUE)
+```
+
+Now the resulting importance of `x`, computed by permutating OOB data, is higher
+than that of `v` or `w` as follows.
+
+```{r rimp1}
+importance(rf1, type = 1)
+```
+
+Still, the importance measured by the node impurity is as expected.
+
+```{r rimp2}
+importance(rf1, type = 2)
+```
+
+## For a binary classification obtained via a cut-off
+
+Here we will train a random forest for the binary classification of a response variable `s`.
+
+```{r rf2}
+ds2 <- generate_dataset()
+rf2 <- randomForest(s ~ ., data = ds2 %>% select(v, w, x, y, z, s), importance = TRUE)
+```
+
+Then `x`'s importance, computed from permutating OOB data, is higher than `v`'s or `w`'s again.
+
+```{r cimp1}
+importance(rf2, type = 1)
+```
+
+Yet, the one measured by the node impurity is as expected.
+
+```{r cimp2}
+importance(rf2, type = 2)
+```
+
