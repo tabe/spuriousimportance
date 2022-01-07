@@ -15,7 +15,7 @@ generate_dataset <- function(n = 500) {
     y <- stats::rnorm(n)
     z <- stats::rnorm(n)
     r <- 0.5 * v + 0.1 * x + 0.01 * y
-    s <- factor(ifelse(r < mean(r), "A", "B"))
+    s <- factor(ifelse(r < stats::median(r), "A", "B"))
     data.frame(v = v,
                w = w,
                x = x,

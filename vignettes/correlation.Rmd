@@ -16,21 +16,57 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(randomForest)
-library(tidyverse)
+library(ggplot2)
+library(caret)
 library(spuriousimportance)
 ```
 
-## Reproducing an expected result
+## Overview of our example dataset
 
-First, we train a random forest for the regression of a response variable `r`.
+Let's start with generating a dataset named `ds`.
 
-```{r rf}
+```{r ds}
 ds <- generate_dataset()
-rf <- randomForest(r ~ ., data = ds %>% select(v, w, x, y, z, r), importance = TRUE)
 ```
 
-`randomForest::importance()` extracts the matrix of importance for each
-predictor variable from the trained model.
+Among five predictor variables `v`, `w`, `x`, `y`, and `z` in the dataset, the
+first two are the most important for the regression of a response variable `r`,
+as the following correlation matrix shows.
+
+```{r cm, fig.width = 7, fig.height = 7}
+graphics::pairs(r ~ v + w + x + y + z, data = ds)
+```
+
+## Training a model that works as expected
+
+First, we train a random forest for the regression of `r`.
+
+```{r rf}
+rf <- randomForest(r ~ v + w + x + y + z, data = ds, importance = TRUE)
+```
+
+The following code illustrates how well the trained model performs the
+regression for a new dataset.
+Its accuracy turns out to be satisfactory although we omit to present any
+measurement of the accuracy.
+
+```{r valid, fig.width = 7}
+validate_regression <- function(rf) {
+    newds <- generate_dataset()
+    newres <- predict(rf, newdata = newds)
+    ggplot(data.frame(x = newds$r, y = newres)) +
+        geom_point(aes(x, y)) +
+        geom_abline(intercept = 0, slope = 1, colour = "red", linetype = "dashed") +
+        coord_fixed() +
+        xlab("r") +
+        ylab(expression(hat(r)))
+}
+
+validate_regression(rf)
+```
+
+`randomForest::importance()` extracts the importance matrix of predictors from
+a given random forest.
 
 ```{r imp1}
 importance(rf, type = 1)
@@ -43,21 +79,15 @@ on argument `type`.
 importance(rf, type = 2)
 ```
 
-Cf. `caret::varImp()` reproduces the former one.
-
-```{r imp3}
-library(caret)
-varImp(rf)
-```
-
 ## For a regression with a reduced set of predictors
 
 Next, we will see what happens when excluding unimportant variables `y` and `z`
 from the set of predictors.
 
-```{r rf1}
+```{r rf1, fig.width = 7}
 ds1 <- generate_dataset()
-rf1 <- randomForest(r ~ ., data = ds1 %>% select(v, w, x, r), importance = TRUE)
+rf1 <- randomForest(r ~ v + w + x, data = ds1, importance = TRUE)
+validate_regression(rf1)
 ```
 
 Now the resulting importance of `x`, computed by permutating OOB data, is higher
@@ -73,16 +103,31 @@ Still, the importance measured by the node impurity is as expected.
 importance(rf1, type = 2)
 ```
 
-## For a binary classification obtained via a cut-off
+## For a binary classification divided by the median
 
-Here we will train a random forest for the binary classification of a response variable `s`.
+Here we will train a random forest for the binary classification of a response
+variable `s`, which divides the rows of a generated dataset into two groups, "A"
+and "B", of equal numbers, using `r`'s median as a cut-off.
 
 ```{r rf2}
 ds2 <- generate_dataset()
-rf2 <- randomForest(s ~ ., data = ds2 %>% select(v, w, x, y, z, s), importance = TRUE)
+rf2 <- randomForest(s ~ v + w + x + y + z, data = ds2, importance = TRUE)
 ```
 
-Then `x`'s importance, computed from permutating OOB data, is higher than `v`'s or `w`'s again.
+The classification performed by the obtained model is of high accuracy, as follows.
+
+```{r valid2}
+validate_classification <- function(rf) {
+    newds <- generate_dataset()
+    newres <- predict(rf, newdata = newds)
+    confusionMatrix(newres, newds$s)
+}
+
+validate_classification(rf2)
+```
+
+However `x`'s importance, computed from permutating OOB data, is higher than
+`v`'s or `w`'s, again.
 
 ```{r cimp1}
 importance(rf2, type = 1)
@@ -94,3 +139,10 @@ Yet, the one measured by the node impurity is as expected.
 importance(rf2, type = 2)
 ```
 
+## Conclusion
+
+The core of our trick to disrupt importance in the above is to include two
+correlated predictors, `v` and `w`. They are collinear in fact.
+Our examples show that high accuracy of the regression or classification
+performed by a trained model does not imply that the resulting importance is
+correct.
