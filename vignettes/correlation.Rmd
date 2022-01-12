@@ -26,6 +26,7 @@ library(spuriousimportance)
 Let's start with generating a dataset named `ds`.
 
 ```{r ds}
+set.seed(17)
 ds <- generate_dataset()
 ```
 
@@ -42,7 +43,7 @@ graphics::pairs(r ~ v + w + x + y + z, data = ds)
 First, we train a random forest for the regression of `r`.
 
 ```{r rf}
-rf <- randomForest(r ~ v + w + x + y + z, data = ds, importance = TRUE)
+rf <- randomForest(r ~ v + w + x + y + z, data = ds, mtry = 2, ntree = 50, importance = TRUE)
 ```
 
 The following code illustrates how well the trained model performs the
@@ -67,13 +68,26 @@ validate_regression(rf)
 
 `randomForest::importance()` extracts the importance matrix of predictors from
 a given random forest.
+Note that the function can calculate different measures of importance, depending
+on argument `type`.
+Calling it with `type = 1` returns a permutation importance using the mean squared
+error (MSE) for each tree.
 
 ```{r imp1}
 importance(rf, type = 1)
 ```
 
-Note that the function can calculate different measures of importance, depending
-on argument `type`.
+By default the permutation importance is normalized to be so-called a z-score.
+On the other hand, if another parameter `scale = FALSE` is passed, we get a raw
+(unscaled) importance as follows.
+
+```{r imp1raw}
+importance(rf, type = 1, scale = FALSE)
+```
+
+Calling the function with `type = 2` returns another type of importance defined
+with a mean decrease in node impurity, which is measured by the residual sum of
+squares (RSS) for regressors.
 
 ```{r imp2}
 importance(rf, type = 2)
@@ -81,12 +95,12 @@ importance(rf, type = 2)
 
 ## For a regression with a reduced set of predictors
 
-Next, we will see what happens when excluding unimportant variables `y` and `z`
+Here we will see what happens when excluding unimportant variables `y` and `z`
 from the set of predictors.
 
 ```{r rf1, fig.width = 7}
 ds1 <- generate_dataset()
-rf1 <- randomForest(r ~ v + w + x, data = ds1, importance = TRUE)
+rf1 <- randomForest(r ~ v + w + x, data = ds1, mtry = 2, ntree = 50, importance = TRUE)
 validate_regression(rf1)
 ```
 
@@ -97,7 +111,13 @@ than that of `v` or `w` as follows.
 importance(rf1, type = 1)
 ```
 
-Still, the importance measured by the node impurity is as expected.
+Nevertheless the unscaled permutation importance does not suffer the bias.
+
+```{r rimp1raw}
+importance(rf1, type = 1, scale = FALSE)
+```
+
+The importance measured by the node impurity is also as expected.
 
 ```{r rimp2}
 importance(rf1, type = 2)
@@ -105,13 +125,13 @@ importance(rf1, type = 2)
 
 ## For a binary classification divided by the median
 
-Here we will train a random forest for the binary classification of a response
+Next, we will train a random forest for the binary classification of a response
 variable `s`, which divides the rows of a generated dataset into two groups, "A"
 and "B", of equal numbers, using `r`'s median as a cut-off.
 
 ```{r rf2}
 ds2 <- generate_dataset()
-rf2 <- randomForest(s ~ v + w + x + y + z, data = ds2, importance = TRUE)
+rf2 <- randomForest(s ~ v + w + x + y + z, data = ds2, mtry = 2, ntree = 50, importance = TRUE)
 ```
 
 The classification performed by the obtained model is of high accuracy, as follows.
@@ -133,7 +153,13 @@ However `x`'s importance, computed from permutating OOB data, is higher than
 importance(rf2, type = 1)
 ```
 
-Yet, the one measured by the node impurity is as expected.
+Yet, such reversal does not occur with the raw permutation importance
+
+```{r cimp1raw}
+importance(rf2, type = 1, scale = FALSE)
+```
+
+... nor with the one measured by the node impurity.
 
 ```{r cimp2}
 importance(rf2, type = 2)
@@ -141,8 +167,24 @@ importance(rf2, type = 2)
 
 ## Conclusion
 
-The core of our trick to disrupt importance in the above is to include two
-correlated predictors, `v` and `w`. They are collinear in fact.
+The core of our trick to disrupt importance in this vignette is to include two
+correlated predictors, `v` and `w`.
+They are collinear in fact.
+For your information, [1] explains the same issue of collinearity in predictors,
+as well as how to deal with it.
+
 Our examples show that high accuracy of the regression or classification
 performed by a trained model does not imply that the resulting importance is
 correct.
+They also indicate that the unscaled permutation importance behaves more
+preferably than the scaled does, which agrees with the statements found in [2]
+and [3].
+
+## References
+
+[1] scikit-learn developers. Permutation Importance with Multicollinear or Correlated Features. https://scikit-learn.org/stable/auto_examples/inspection/plot_permutation_importance_multicollinear.html
+
+[2] Strobl, C., Boulesteix, AL., Kneib, T. et al. Conditional variable importance for random forests. BMC Bioinformatics 9, 307 (2008). https://doi.org/10.1186/1471-2105-9-307
+
+[3] Parr, T. et al. Beware Default Random Forest Importances. https://explained.ai/rf-importance/index.html
+
