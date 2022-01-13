@@ -123,7 +123,7 @@ The importance measured by the node impurity is also as expected.
 importance(rf1, type = 2)
 ```
 
-## For a binary classification divided by the median
+## For a binary classification defined by ranks
 
 Next, we will train a random forest for the binary classification of a response
 variable `s`, which divides the rows of a generated dataset into two groups, "A"
